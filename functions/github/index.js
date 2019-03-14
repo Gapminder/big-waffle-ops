@@ -99,12 +99,13 @@ exports.load = function (req, res) {
       })
     })
     .then(shell => {
-      return shell.exec(cmd)
+      shell.exec(cmd)
+    })
+    .then(() => {
+      res.send(content)     
     })
     .catch(err => {
       console.error(err)
-    })
-    .finally(() => {
       res.send(content)     
     })
 }

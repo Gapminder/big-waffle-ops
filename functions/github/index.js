@@ -1,6 +1,5 @@
 const node_ssh = require('node-ssh')
 
-
 function warning (message, fileName, lineNumber) {
   const warning = Error(message, fileName, lineNumber)
   warning.logLevel = 'info'
@@ -12,8 +11,40 @@ function info (message, fileName, lineNumber) {
   return info
 }
 
+let privateSSHKey
+function getSSHKey () {
+  return new Promise((resolve, reject) => {
+    if (privateSSHKey) {
+      resolve(privateSSHKey)
+    } else {
+      const GCS = require('@google-cloud/storage').Storage
+      const { WritableStream } = require('memory-streams')
+      
+      const Bucket = (new GCS()).bucket(process.env['SSH_BUCKET'] || 'org-gapminder-big-waffle-functions')
+      const keyFile = Bucket.file(process.env['SSH_FILE'] || 'id_rsa')
+      const buffer = new WritableStream()
+      
+      try {
+        keyFile.createReadStream()
+        .on('error', err => {
+          console.error(err)
+          reject(err)
+        })
+        .on('end', () => {
+          privateSSHKey = buffer.toString()
+          resolve(privateSSHKey)
+        })
+        .pipe(buffer)
+      } catch (err) {
+        console.error(err)
+        reject(err)
+      }
+    }
+  })
+}
+  
 exports.load = function (req, res) {
-  let result = 'OK'
+  let cmd, content = 'OK'
   try {
     // check if action is 'closed', the PR was merged, and the merge is to 'master' (or the BW_MASTER_BRANCH)
     if (!req.body.pull_request) {
@@ -35,7 +66,7 @@ exports.load = function (req, res) {
      * remove big-waffle-, replace open_numbers-[-] with on-
      */
     let name = req.body.pull_request.repository.name.toLowerCase()
-    name = name.replace(/^ddf-+/, '')
+    name = name.replace(/ddf-+/, '')
     name = name.replace(/gapminder-+/, '')
     name = name.replace(/big-*waffle-+/, '')
     name = name.replace(/open_numbers-+/, 'on-')
@@ -48,11 +79,7 @@ exports.load = function (req, res) {
     // build command to dispatch, should be like "./loadgit.sh -d v0 https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
     const ddfDirectory = req.query.ddfdir
     const gitUrl = req.body.pull_request.repository.clone_url
-    const cmd = `./loadgit.sh -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} &`
-    console.log(cmd)
-    result = cmd
-    
-    // TODO: ssh into the big-waffle master and execute the command
+    cmd = `nohup ./bin/loadgit.sh -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} > git-load.log &`
   } catch (err) {
     // TODO: use bunyan for Stackdriver to do the logging
     if ((err.logLevel || 'error') == 'error') {
@@ -60,7 +87,24 @@ exports.load = function (req, res) {
     } else {
       console.log(err)
     }
-  } finally {
-    res.send(result)
-  }
+  }  
+  // ssh into the big-waffle master and execute the command
+  getSSHKey()
+    .then(privateKey => {
+      const ssh = new node_ssh()
+      return ssh.connect({
+        host: process.env.BW_MASTER_IP || '35.228.3.37',
+        username: 'github',
+        privateKey
+      })
+    })
+    .then(shell => {
+      return shell.exec(cmd)
+    })
+    .catch(err => {
+      console.error(err)
+    })
+    .finally(() => {
+      res.send(content)     
+    })
 }

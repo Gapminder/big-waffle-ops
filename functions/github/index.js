@@ -99,7 +99,7 @@ exports.load = function (req, res) {
     // build command to dispatch, should be like "./loadgit.sh -d v0 https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
     const ddfDirectory = req.query.ddfdir
     const gitUrl = req.body.repository.clone_url
-    cmd = `nohup ./bin/loadgit.sh -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} > git-load.log &`
+    cmd = `nohup ./bin/loadgit -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} > git-load.log &`
   } catch (err) {
     // TODO: use bunyan for Stackdriver to do the logging
     if ((err.logLevel || 'error') == 'error') {

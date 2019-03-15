@@ -1,3 +1,4 @@
+const crypto = require('crypto')
 const node_ssh = require('node-ssh')
 
 function warning (message, fileName, lineNumber) {
@@ -50,26 +51,45 @@ exports.load = function (req, res) {
     if (!req.body.pull_request) {
       throw info(`GitHub trigger was not for a Pull Request`)
     }
+    let name = req.body.repository.name
     if (req.body.action !== 'closed') {
-      throw info(`GitHub PR was ${req.body.action}. No loading deemed necessary`)
+      throw info(`GitHub PR on ${name} was ${req.body.action}. No loading deemed necessary`)
     }
     const branch = req.query.branch || 'master'
     if (req.body.pull_request.base.ref !== branch) {
-      throw info(`GitHub trigger was for a PR on an irrelevant branch: not ${branch} but: ${req.body.pull_request.base.ref}`)
+      throw info(`GitHub PR on ${name} was an irrelevant branch: not ${branch} but: ${req.body.pull_request.base.ref}`)
     }
-    // TODO: check that PR was merged => pull_request.merged === true
+    if (req.body.pull_request.merged !== true) {
+      throw info(`GitHub PR on ${name} was not merged. No loading deemed necessary`)
+    }
     
-    // TODO: check signature!
-    
+    // check signature!
+    const signature = req.get('X-Hub-Signature')
+    if (!signature) {
+      throw warning(`GitHub Signature missing`)
+    }
+    let hmac, expectedHMAC
+    try {
+      expectedHMAC = signature.split('=', 2) // cipher,hex digest
+      hmac = crypto.createHmac(expectedHMAC[0], process.env.GIT_HOOK_SECRET)
+      const rawBody = JSON.stringify(req.body)
+      hmac.update(rawBody)
+    } catch (signErr) {
+      throw warning('GitHub signature could not be verified')
+    }
+    if (hmac.digest('hex') !== expectedHMAC[1]) {
+      throw warning('GitHub signature was not correct')
+    }
+
     /* 
      * trim the name, we remove ddf-[-], remove gapminder-[-], 
-     * remove big-waffle-, replace open_numbers-[-] with on-
+     * remove big-waffle-, replace open_numbers-[-] with on_
      */
-    let name = req.body.pull_request.repository.name.toLowerCase()
+    name = name.toLowerCase()
     name = name.replace(/ddf-+/, '')
     name = name.replace(/gapminder-+/, '')
     name = name.replace(/big-*waffle-+/, '')
-    name = name.replace(/open_numbers-+/, 'on-')
+    name = name.replace(/open_numbers-+/, 'on_')
     
     let version
     if (req.query.dateversion === undefined && req.body.pull_request.merge_commit_sha) {
@@ -78,7 +98,7 @@ exports.load = function (req, res) {
     
     // build command to dispatch, should be like "./loadgit.sh -d v0 https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
     const ddfDirectory = req.query.ddfdir
-    const gitUrl = req.body.pull_request.repository.clone_url
+    const gitUrl = req.body.repository.clone_url
     cmd = `nohup ./bin/loadgit.sh -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} > git-load.log &`
   } catch (err) {
     // TODO: use bunyan for Stackdriver to do the logging
@@ -87,6 +107,8 @@ exports.load = function (req, res) {
     } else {
       console.log(err)
     }
+    res.send(content)
+    return
   }  
   // ssh into the big-waffle master and execute the command
   getSSHKey()

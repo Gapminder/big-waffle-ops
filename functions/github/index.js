@@ -1,5 +1,6 @@
 const crypto = require('crypto')
 const node_ssh = require('node-ssh')
+const YAML = require('yaml')
 
 function warning (message, fileName, lineNumber) {
   const warning = Error(message, fileName, lineNumber)
@@ -12,17 +13,17 @@ function info (message, fileName, lineNumber) {
   return info
 }
 
-let privateSSHKey
-function getSSHKey () {
+let config
+function getConfig () {
   return new Promise((resolve, reject) => {
-    if (privateSSHKey) {
-      resolve(privateSSHKey)
+    if (config) {
+      resolve(config)
     } else {
       const GCS = require('@google-cloud/storage').Storage
       const { WritableStream } = require('memory-streams')
       
-      const Bucket = (new GCS()).bucket(process.env['SSH_BUCKET'] || 'org-gapminder-big-waffle-functions')
-      const keyFile = Bucket.file(process.env['SSH_FILE'] || 'id_rsa')
+      const Bucket = (new GCS()).bucket(process.env['CONFIG_BUCKET'] || 'org-gapminder-big-waffle-functions')
+      const keyFile = Bucket.file(process.env['CONFIG_FILE'] || 'github.yaml')
       const buffer = new WritableStream()
       
       try {
@@ -32,8 +33,8 @@ function getSSHKey () {
           reject(err)
         })
         .on('end', () => {
-          privateSSHKey = buffer.toString()
-          resolve(privateSSHKey)
+          config = YAML.parse(buffer.toString())
+          resolve(config)
         })
         .pipe(buffer)
       } catch (err) {
@@ -45,24 +46,40 @@ function getSSHKey () {
 }
   
 exports.load = function (req, res) {
-  let cmd, content = 'OK'
-  try {
+  let cmd, content = 'OK', name, version
+  const branch = req.query.branch || 'master'
+    try {
     // check if action is 'closed', the PR was merged, and the merge is to 'master' (or the BW_MASTER_BRANCH)
     if (!req.body.pull_request) {
       throw info(`GitHub trigger was not for a Pull Request`)
     }
-    let name = req.body.repository.name
+    
+    name = req.body.repository.name
+    
     if (req.body.action !== 'closed') {
-      throw info(`GitHub PR on ${name} was ${req.body.action}. No loading deemed necessary`)
+      throw info(`GitHub PR on ${name} was "${req.body.action}", not "closed". No loading deemed necessary`)
     }
-    const branch = req.query.branch || 'master'
+    
     if (req.body.pull_request.base.ref !== branch) {
       throw info(`GitHub PR on ${name} was an irrelevant branch: not ${branch} but: ${req.body.pull_request.base.ref}`)
     }
+    
     if (req.body.pull_request.merged !== true) {
       throw info(`GitHub PR on ${name} was not merged. No loading deemed necessary`)
     }
-    
+  } catch (err) {
+    // TODO: use bunyan for Stackdriver to do the logging
+    if ((err.logLevel || 'error') == 'error') {
+      console.error(err)
+    } else {
+      console.log(err.message)
+    }
+    res.send(content)
+    return
+  }
+
+  getConfig()
+  .then(config => {
     // check signature!
     const signature = req.get('X-Hub-Signature')
     if (!signature) {
@@ -71,7 +88,7 @@ exports.load = function (req, res) {
     let hmac, expectedHMAC
     try {
       expectedHMAC = signature.split('=', 2) // cipher,hex digest
-      hmac = crypto.createHmac(expectedHMAC[0], process.env.GIT_HOOK_SECRET)
+      hmac = crypto.createHmac(expectedHMAC[0], config.githubSecret)
       const rawBody = JSON.stringify(req.body)
       hmac.update(rawBody)
     } catch (signErr) {
@@ -91,7 +108,6 @@ exports.load = function (req, res) {
     name = name.replace(/big-*waffle-+/, '')
     name = name.replace(/open_numbers-+/, 'on_')
     
-    let version
     if (req.query.dateversion === undefined && req.body.pull_request.merge_commit_sha) {
       version = req.body.pull_request.merge_commit_sha.slice(0,7) //use the short git hash
     }
@@ -100,34 +116,28 @@ exports.load = function (req, res) {
     const ddfDirectory = req.query.ddfdir
     const gitUrl = req.body.repository.clone_url
     cmd = `nohup ./bin/loadgit -b ${branch}${ddfDirectory ? ` -d ${ddfDirectory} `: ''}${version ? ` -v ${version} `: ' '}${gitUrl} ${name} > git-load.log &`
-  } catch (err) {
+
+    // ssh into the big-waffle master and execute the command
+    const ssh = new node_ssh()
+    return ssh.connect({
+      host: config.bwMaster,
+      username: 'github',
+      privateKey: config.privateKey
+    })
+  })
+  .then(shell => {
+    shell.exec(cmd)
+  })
+  .then(() => {
+    res.send(content)     
+  })
+  .catch(err => {
     // TODO: use bunyan for Stackdriver to do the logging
     if ((err.logLevel || 'error') == 'error') {
       console.error(err)
     } else {
-      console.log(err)
+      console.log(err.message)
     }
-    res.send(content)
-    return
-  }  
-  // ssh into the big-waffle master and execute the command
-  getSSHKey()
-    .then(privateKey => {
-      const ssh = new node_ssh()
-      return ssh.connect({
-        host: process.env.BW_MASTER_IP || '35.228.3.37',
-        username: 'github',
-        privateKey
-      })
-    })
-    .then(shell => {
-      shell.exec(cmd)
-    })
-    .then(() => {
-      res.send(content)     
-    })
-    .catch(err => {
-      console.error(err)
-      res.send(content)     
-    })
+    res.send(content)     
+  })
 }

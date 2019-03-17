@@ -8,6 +8,7 @@ workingDir=${LOAD_GIT_DIR:-"./tmp"}
 branch="master"
 subDir=
 version=
+useHash=0
 
 while [ $# -gt 2 ]; do
     case $1 in
@@ -19,6 +20,8 @@ while [ $# -gt 2 ]; do
                                 ;;
         -v | --version )        shift
                                 version=$1
+                                ;;
+        --hash )                useHash=1
                                 ;;
         -h | --help )           usage
                                 exit
@@ -56,6 +59,9 @@ fi
 ddfDirectory=${workingDir}/${name}
 if [ -n $subDir ] ; then 
     ddfDirectory=${ddfDirectory}/${subDir}
+fi
+if [ $useHash -gt 0 ] ; then
+    version=`git -C ${workingDir}/${name} rev-parse --short ${branch}`
 fi
 node ${bigwaffleDir}/src/cli.js load -d $ddfDirectory $name $version
 if [ $? -gt 0 ] ; then

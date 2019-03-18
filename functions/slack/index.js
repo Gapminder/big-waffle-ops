@@ -26,7 +26,6 @@ function verify (req, config) {
   const signature = req.get('X-Slack-Signature')
   const timestamp = req.get('X-Slack-Request-Timestamp')
   if (! (signature && timestamp)) {
-    console.log('signature headers missing')
     throw warning(`Slack signature absent`)
   }
   let hmac, expectedHMAC
@@ -35,7 +34,7 @@ function verify (req, config) {
     hmac = crypto.createHmac('sha256', config.clientSecret)
     hmac.update(`${expectedHMAC[0]}:`)
     hmac.update(`${timestamp}:`)
-    const rawBody = querystring.stringify(req.body).replace(/%20/g, '+')
+    const rawBody = querystring.stringify(req.body).replace(/%20/g, '+') //Slack uses HTML encoding with + signs for spaces.
     hmac.update(rawBody)
   } catch (signErr) {
     console.error(signErr)
@@ -97,7 +96,6 @@ loadCmd._do = function (req, res, arguments, reply, config) {
     }
     // build command to dispatch, should be like "./loadgit.sh https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
     const cmd = `nohup ./bin/loadgit ${arguments.dateversion ? '': '--hash '}${arguments.ddfdir ? ` -d ${arguments.ddfdir} `: ' '}-b ${arguments.branch} ${gitUrl} ${name} > slack-load.log &`
-    reply.text = cmd
     return exec(cmd, config, res, reply) // this returns a Promise that executes the command on the BigWaffle master
   } catch (err) {
     error(err, res, this)
@@ -106,7 +104,6 @@ loadCmd._do = function (req, res, arguments, reply, config) {
 }
 
 module.exports.do = function (req, res) {
-  console.log(req.body)
   const command = commands[req.body.command.slice(1)] // we strip the opening forward slash cahracter
   let arguments, reply = {
     response_type: "ephimeral",
@@ -117,7 +114,6 @@ module.exports.do = function (req, res) {
       throw warning(`Unrecognized command: ${req.body.command}`)
     }
     try {
-      console.log(decodeURIComponent(req.body.text))
       arguments = command.parseArgs((decodeURIComponent(req.body.text || '').split(/\s+/)))
     } catch (parseErr) {
       throw info(parseErr.message)
@@ -137,6 +133,7 @@ module.exports.do = function (req, res) {
       res.send('OK')
       return   
     }
+    console.log(`${req.body.user_name || req.body.user_id}: ${req.body.command} ${req.body.text}`)
     // execute the command
     return command._do(req, res, arguments, reply, config)
   })

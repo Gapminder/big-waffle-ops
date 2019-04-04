@@ -1,0 +1,6 @@
+{
+  "main": "index.js",
+  "dependencies": {
+    "bw-cf-utils": "git+https://github.com/Gapminder/big-waffle-cloud-function-utils.git"
+  }
+}

@@ -55,6 +55,13 @@ const commands = {
 }
 const loadCmd = commands.bwload
 loadCmd.addArgument(
+  ['-N', '--name'],
+  {
+    nargs: 1,
+    help: 'Give the dataset an explicit name, instead of using the Git URL path'
+  }
+)
+loadCmd.addArgument(
   ['-D', '--dateversion'],
   {
     action: 'storeTrue',
@@ -90,9 +97,9 @@ loadCmd._do = function (req, res, arguments, reply, config) {
     } catch (typeError) {
       throw info(`gitCloneUrl: "${arguments.gitCloneUrl}" is not a valid URL`)
     }
-    name = datasetName(gitUrl.pathname.split('/').pop())
+    name = arguments.name || datasetName(gitUrl.pathname.split('/').pop())
     if (name.length < 1) {
-      throw info(`${gitUrl} has an empty path`)
+      throw info(`no name was given and ${gitUrl} has an empty path`)
     }
     // build command to dispatch, should be like "./loadgit.sh https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
     const cmd = `nohup ./bin/loadgit ${arguments.dateversion ? '': '--hash '}${arguments.ddfdir ? ` -d ${arguments.ddfdir} `: ' '}-b ${arguments.branch} ${gitUrl} ${name} > slack-load.log &`

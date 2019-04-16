@@ -17,28 +17,25 @@ exports.processEvent =  event => {
   let cmd   
 
   try {
-    const build = eventToBuild(event.data.data)
-    console.log(JSON.stringify(build))
+    const build = eventToBuild(event.data)
+    console.debug(JSON.stringify(build))
     // QUEUED, WORKING, SUCCESS, FAILURE, INTERNAL_ERROR, TIMEOUT, CANCELLED, 'FAILURE', 'INTERNAL_ERROR', 'TIMEOUT'
-    if (! ['SUCCESS'].includes(build.status)) {
-      return 'No action taken'
+    if (['SUCCESS'].includes(build.status) 
+        && build.source.repoSource 
+        && build.source.repoSource.branchName === 'production') {
+      cmd = 'cd $BIG_WAFFLE_HOME && git pull'
     }
-  
-    cmd = 'cd $BIG_WAFFLE_HOME && git pull'
+    if (!cmd) {
+      return 'No action required'
+    }
   } catch (err) {
+    console.debug(event.data)
     error(err)
     return 'No action taken'
   }
 
   getConfig()
   .then(config => {
-    // check signature!
-    try {
-      verify(req, config)
-    } catch (err) {
-      console.log(err)
-      return 'No action taken' 
-    }
     // execute the command
     return exec(cmd, config)
   })

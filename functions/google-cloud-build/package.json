@@ -1,6 +1,7 @@
 {
   "main": "index.js",
   "dependencies": {
-    "bw-cf-utils": "git+https://github.com/Gapminder/big-waffle-cloud-function-utils.git"
+    "bw-cf-utils": "git+https://github.com/Gapminder/big-waffle-cloud-function-utils.git",
+    "node-fetch": "^2.3.0"
   }
 }

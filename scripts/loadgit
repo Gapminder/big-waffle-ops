@@ -1,6 +1,6 @@
 #!/bin/bash
 usage() {
-    echo 'loadgit [ -h | --help ] | [ -b | --branch branchname ] [-v | --version version ] [ -d | --dir ddfDirectory ] git_url dataset_name'
+    echo 'loadgit [ -h | --help ] | [ --hash] [--publish] [ -b | --branch branchname ] [-v | --version version ] [ -d | --dir ddfDirectory ] git_url dataset_name'
 }
 
 bigwaffleDir=${BIG_WAFFLE_HOME:-"."}
@@ -9,6 +9,7 @@ branch="master"
 subDir=
 version=
 useHash=0
+publish=""
 
 while [ $# -gt 2 ]; do
     case $1 in
@@ -22,6 +23,8 @@ while [ $# -gt 2 ]; do
                                 version=$1
                                 ;;
         --hash )                useHash=1
+                                ;;
+        --publish )             publish="--publish"
                                 ;;
         -h | --help )           usage
                                 exit
@@ -63,7 +66,7 @@ fi
 if [ $useHash -gt 0 ] ; then
     version=`git -C ${workingDir}/${name} rev-parse --short ${branch}`
 fi
-node ${bigwaffleDir}/src/cli.js load -d $ddfDirectory $name $version
+node ${bigwaffleDir}/src/cli.js load $publish -d $ddfDirectory $name $version
 if [ $? -gt 0 ] ; then
     echo "Loading $gitUrl as $name failed"
     rm -Rf ${workingDir}/${name}

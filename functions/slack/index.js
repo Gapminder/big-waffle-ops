@@ -3,9 +3,10 @@ const querystring = require('querystring')
 const { URL } = require('url')
 
 const { ArgumentParser } = require('argparse')
+// const fetch = require('node-fetch')
 const { datasetName, info, warning, getConfig, exec } = require('bw-cf-utils')
 
-function error (err, res, command) {
+function error (err, res) {
   // TODO: use bunyan for Stackdriver to do the logging
   if ((err.logLevel || 'error') == 'error') {
     console.error(err)
@@ -16,8 +17,8 @@ function error (err, res, command) {
     response_type: "ephimeral",
   }
   reply.text = `${err.message}`
-  if (command && command.formatHelp) {
-    reply.attachments = [{text: command.formatHelp()}]
+  if (err.helpText) {
+    reply.attachments = [{text: err.helpText}]
   }
   res.send(reply)
 }
@@ -46,87 +47,206 @@ function verify (req, config) {
 }
 
 const commands = {
-  bwload: new ArgumentParser({
-    prog: '/bwload',
-    addHelp: false,
-    description: 'Slack interface to load and manage datasets in BigWaffle',
-    debug: true // this makes the parser throw exceptions instead of exiting the node process
-  })
-}
-const loadCmd = commands.bwload
-loadCmd.addArgument(
-  ['-N', '--name'],
-  {
-    nargs: 1,
-    help: 'Give the dataset an explicit name, instead of using the Git URL path'
-  }
-)
-loadCmd.addArgument(
-  ['-D', '--dateversion'],
-  {
-    action: 'storeTrue',
-    help: 'Give the dataset a version based on the date, instead of the Git hash'
-  }
-)
-loadCmd.addArgument(
-  '--ddfdir',
-  {
-    nargs: 1,
-    help: 'The name of the directory that has the DDF package.json file. Defaults to "/"'
-  }
-)
-loadCmd.addArgument(
-  'gitCloneUrl',
-  {
-    help: 'The URL to clone the GitHub repository'
-  }
-)
-loadCmd.addArgument(
-  'branch',
-  {
-    defaultValue: 'master',
-    nargs: '?',
-    help: 'The name of the branch in the repository. Defaults to "master"'
-  }
-)
-loadCmd._do = function (req, res, arguments, reply, config) {
-  try {
-    let gitUrl, name
-    try {
-      gitUrl = new URL(arguments.gitCloneUrl)
-    } catch (typeError) {
-      throw info(`gitCloneUrl: "${arguments.gitCloneUrl}" is not a valid URL`)
+  bwload: {
+    args: [
+      [  
+        ['-N', '--name'],
+        {
+          nargs: 1,
+          help: 'Give the dataset an explicit name, instead of using the Git URL path'
+        }
+      ],
+      [
+        ['-D', '--dateversion'],
+        {
+          action: 'storeTrue',
+          help: 'Give the dataset a version based on the date, instead of the Git hash'
+        }
+      ],
+      [
+        '--ddfdir',
+        {
+          nargs: 1,
+          help: 'The name of the directory that has the DDF package.json file. Defaults to "/"'
+        }      
+      ],
+      [
+        '--publish',
+        {
+          action: 'storeTrue',
+          help: 'Make the newly loaded version of the dataset the default for answering queries'
+        }        
+      ],
+      [
+        'gitCloneUrl',
+        {
+          help: 'The URL to clone the GitHub repository'
+        }      
+      ],
+      [
+        'branch',
+        {
+          defaultValue: 'master',
+          nargs: '?',
+          help: 'The name of the branch in the repository. Defaults to "master"'
+        }
+      ]
+    ],
+    cmdFor: args => {
+      let gitUrl, name
+      try {
+        gitUrl = new URL(args.gitCloneUrl)
+      } catch (typeError) {
+        throw info(`gitCloneUrl: "${args.gitCloneUrl}" is not a valid URL`)
+      }
+      name = args.name || datasetName(gitUrl.pathname.split('/').pop())
+      if (name.length < 1) {
+        throw info(`no name was given and ${gitUrl} has an empty path`)
+      }
+      // build command to dispatch, should be like "./loadgit.sh https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
+      return `nohup ./bin/loadgit ${args.dateversion ? '': '--hash '}${args.publish ? '--publish ' : ''}${args.ddfdir ? `-d ${args.ddfdir} `: ' '}-b ${args.branch} ${gitUrl} ${name} > slack-load.log &`
     }
-    name = arguments.name || datasetName(gitUrl.pathname.split('/').pop())
-    if (name.length < 1) {
-      throw info(`no name was given and ${gitUrl} has an empty path`)
-    }
-    // build command to dispatch, should be like "./loadgit.sh https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
-    const cmd = `nohup ./bin/loadgit ${arguments.dateversion ? '': '--hash '}${arguments.ddfdir ? ` -d ${arguments.ddfdir} `: ' '}-b ${arguments.branch} ${gitUrl} ${name} > slack-load.log &`
-    return exec(cmd, config, res, reply) // this returns a Promise that executes the command on the BigWaffle master
-  } catch (err) {
-    error(err, res, this)
-    return
+  },
+  bwpublish: {
+    args: [
+      [
+        'dataset',
+        {
+          help: 'The name of the dataset to publish'
+        }
+      ]    
+    ],
+    cmdFor: args => {
+      // build command to dispatch
+      return `./bin/bw make-default ${args.dataset} latest`
+    },
+    useStdOut: true
+  },
+  bwdefault: {
+    args: [
+      [
+        'dataset',
+        {
+          help: 'The name of the dataset to publish'
+        }
+      ],
+      [
+        'version',
+        {
+          help: 'The version of the dataset'
+        }      
+      ]
+    ],
+    cmdFor: args => {
+      // build command to dispatch
+      return `./bin/bw make-default ${args.dataset} ${version}`
+    },
+    useStdOut: true
+  },
+  bwlist: {
+    args: [
+      [
+        'dataset',
+        {
+          defaultValue: undefined,
+          nargs: '?',
+          help: 'The name of the dataset'
+        }      
+      ]
+    ],
+    cmdFor: args => {
+      // build command to dispatch
+      return `./bin/bw list ${args.dataset || ''}`
+    },
+    useStdOut: true
+  },
+  bwpurge: {
+    args: [
+      [
+        'dataset',
+        {
+          help: 'The name of the dataset to purge'
+        }
+      ]
+    ],
+    cmdFor: args => {
+      // build command to dispatch
+      return `./bin/bw purge ${args.dataset}`
+    },
+    useStdOut: true
   }
 }
 
+
+function getCommand(command, argsString) {
+  const spec = commands[command]
+  if(! (spec && typeof spec.cmdFor === 'function')) {
+    throw warning(`Unrecognized command: ${command}`)
+  }
+  const parser = spec.parser || new ArgumentParser({
+    prog: `/${command}`,
+    addHelp: false,
+    description: 'Slack interface to load and manage datasets in BigWaffle',
+    debug: true // this makes the parser throw exceptions instead of exiting the node process 
+  })
+  if (!spec.parser) {
+    for (let arg of spec.args) {
+      parser.addArgument(...arg)
+    }
+    spec.parser = parser
+  }
+  
+  let cmdArgs
+  try {
+    cmdArgs = parser.parseArgs((decodeURIComponent(argsString || '').split(/\s+/)))
+  } catch (parseErr) {
+    const err = info(parseErr.message)
+    err.helpText = parser.formatHelp()
+    throw err
+  }
+
+  const cmd = new String(spec.cmdFor(cmdArgs))
+  if (spec.useStdOut) {
+    cmd.useStdOut = true
+  }
+  console.log(`use stdout: ${cmd.useStdOut}`)
+  return cmd
+}
+
+// function postResult(responseUrl, result) {
+//   console.log('Starting to POST result')
+//   if (typeof result === 'string') {
+//     result = {
+//       response_type: "ephimeral",
+//       text: result      
+//     }
+//   }
+//   return fetch(responseUrl, {
+//     method: 'post',
+//     body: JSON.stringify(result),
+//     headers: {
+//       'Content-Type': 'application/json'
+//     }
+//   })
+//   .then(res => {
+//     console.log('Finished posting result')
+//     if (!res.ok) {
+//       console.error('Could not respond to Slack')
+//     }
+//     return res
+//   })
+// }
+
 module.exports.do = function (req, res) {
-  const command = commands[req.body.command.slice(1)] // we strip the opening forward slash cahracter
-  let arguments, reply = {
+  let cmd, reply = {
     response_type: "ephimeral",
     text: `Slack command ${req.body.command} ${req.body.text} is being processed...`,
   }
   try {
-    if(! (command && typeof command._do === 'function')) {
-      throw warning(`Unrecognized command: ${req.body.command}`)
-    }
-    try {
-      arguments = command.parseArgs((decodeURIComponent(req.body.text || '').split(/\s+/)))
-    } catch (parseErr) {
-      throw info(parseErr.message)
-    }
+    cmd = getCommand(req.body.command.slice(1), req.body.text)
   } catch (err) {
-    error(err, res, command)
+    console.info(reply.text)
+    error(err, res)
     return
   }
 
@@ -138,13 +258,29 @@ module.exports.do = function (req, res) {
     } catch (err) {
       console.log(err)
       res.send('OK')
-      return   
+      return
     }
-    console.log(`${req.body.user_name || req.body.user_id}: ${req.body.command} ${req.body.text}`)
+    console.info(`${req.body.user_name || req.body.user_id}: ${req.body.command} ${req.body.text}`)
+    console.info(`Respond to ${req.body.response_url}`)
+    // send initial reply to Slack
+    //res.send(reply)
     // execute the command
-    return command._do(req, res, arguments, reply, config)
+    console.debug(cmd)
+    return exec(cmd.toString(), config) // this returns a Promise that executes the command on the BigWaffle master
   })
+  .then(result => {
+    if (cmd.useStdOut && result.stdout) {
+      reply.text += `\n${result.stdout}`
+    }
+    return res.send(reply)
+  })
+  // .then(slackResponse => {
+  //   console.debug('Slack response received')
+  //   return
+  // })
   .catch(err => {
-    error(err, res, command)
+    error(err, res)
   })
 }
+
+//console.log(getCommand('bwload', '-D --publish -N test --ddfdir v0 https://github.com/Gapminder/big-waffle-ddf-testdata.git'))

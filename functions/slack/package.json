@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "argparse": "^1.0.10",
-    "bw-cf-utils": "git+https://github.com/Gapminder/big-waffle-cloud-function-utils.git"
+    "bw-cf-utils": "git+https://github.com/Gapminder/big-waffle-cloud-function-utils.git",
+    "node-fetch": "^2.3.0"
   }
 }

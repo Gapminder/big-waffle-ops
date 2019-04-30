@@ -1,4 +1,4 @@
-# Instructions to Google Cloud Build to build, test, and deploy
+# Instructions to Google Cloud Build to build and deploy
 steps:
 # Clone the repo **including submodules** into the 'bwops' directory
 - name: 'gcr.io/cloud-builders/git'

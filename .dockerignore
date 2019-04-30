@@ -1,0 +1,15 @@
+*~
+.*
+functions
+scripts
+launch.json
+node_modules
+
+.env
+npm-debug.log
+
+_Inline/
+
+tmp/*
+!tmp/.gitkeep
+/tests/output/*

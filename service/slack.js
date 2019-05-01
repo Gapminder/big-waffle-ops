@@ -3,10 +3,10 @@ const querystring = require('querystring')
 const { URL } = require('url')
 
 const { ArgumentParser } = require('argparse')
-// const fetch = require('node-fetch')
-const { datasetName, info, warning, getConfig, exec } = require('bw-cf-utils')
+const fetch = require('node-fetch')
+const { datasetName, info, warning, loadConfig, exec } = require('./utils')
 
-function error (err, res) {
+function errorReply(err) {
   // TODO: use bunyan for Stackdriver to do the logging
   if ((err.logLevel || 'error') == 'error') {
     console.error(err)
@@ -20,7 +20,7 @@ function error (err, res) {
   if (err.helpText) {
     reply.attachments = [{text: err.helpText}]
   }
-  res.send(reply)
+  return reply
 }
 
 function verify (req, config) {
@@ -32,7 +32,7 @@ function verify (req, config) {
   let hmac, expectedHMAC
   try {
     expectedHMAC = signature.split('=', 2) // version, hex digest
-    hmac = crypto.createHmac('sha256', config.clientSecret)
+    hmac = crypto.createHmac('sha256', config.signingSecret)
     hmac.update(`${expectedHMAC[0]}:`)
     hmac.update(`${timestamp}:`)
     const rawBody = querystring.stringify(req.body).replace(/%20/g, '+') //Slack uses HTML encoding with + signs for spaces.
@@ -139,7 +139,7 @@ const commands = {
     ],
     cmdFor: args => {
       // build command to dispatch
-      return `./bin/bw make-default ${args.dataset} ${version}`
+      return `./bin/bw make-default ${args.dataset} ${args.version}`
     },
     useStdOut: true
   },
@@ -213,31 +213,40 @@ function getCommand(command, argsString) {
   return cmd
 }
 
-// function postResult(responseUrl, result) {
-//   console.log('Starting to POST result')
-//   if (typeof result === 'string') {
-//     result = {
-//       response_type: "ephimeral",
-//       text: result      
-//     }
-//   }
-//   return fetch(responseUrl, {
-//     method: 'post',
-//     body: JSON.stringify(result),
-//     headers: {
-//       'Content-Type': 'application/json'
-//     }
-//   })
-//   .then(res => {
-//     console.log('Finished posting result')
-//     if (!res.ok) {
-//       console.error('Could not respond to Slack')
-//     }
-//     return res
-//   })
-// }
+function postResult(responseUrl, result) {
+  console.log('Starting to POST result')
+  if (typeof result === 'string') {
+    result = {
+      response_type: "ephimeral",
+      text: result      
+    }
+  }
+  return fetch(responseUrl, {
+    method: 'post',
+    body: JSON.stringify(result),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(res => {
+    console.log('Finished posting result')
+    if (!res.ok) {
+      console.error('Could not send result to Slack')
+    }
+    return res
+  })
+}
 
-module.exports.do = function (req, res) {
+let config
+
+async function getConfig() {
+  if (!config) {
+    config = await loadConfig('slack.yaml')
+  }
+  return config
+}
+
+module.exports.do = async function (req) {
   let cmd, reply = {
     response_type: "ephimeral",
     text: `Slack command ${req.body.command} ${req.body.text} is being processed...`,
@@ -246,41 +255,32 @@ module.exports.do = function (req, res) {
     cmd = getCommand(req.body.command.slice(1), req.body.text)
   } catch (err) {
     console.info(reply.text)
-    error(err, res)
-    return
+    return errorReply(err)
   }
 
-  getConfig()
-  .then(config => {
-    // check signature!
-    try {
-      verify(req, config)
-    } catch (err) {
-      console.log(err)
-      res.send('OK')
-      return
+  const config = await getConfig()
+  // check signature!
+  try {
+    verify(req, config)
+  } catch (err) {
+    console.log(err)
+    if (process.env.NODE_ENV === "production") {
+      // in production we stop here!
+      return 'OK'
     }
-    console.info(`${req.body.user_name || req.body.user_id}: ${req.body.command} ${req.body.text}`)
-    console.info(`Respond to ${req.body.response_url}`)
-    // send initial reply to Slack
-    //res.send(reply)
-    // execute the command
-    console.debug(cmd)
-    return exec(cmd.toString(), config) // this returns a Promise that executes the command on the BigWaffle master
-  })
+  }
+  console.info(`${req.body.user_name || req.body.user_id}: ${req.body.command} ${req.body.text}`)
+  console.info(`Respond to ${req.body.response_url}`)
+  // start execution of the command
+  console.debug(cmd)
+  exec(cmd.toString(), config) // this returns a Promise that executes the command on the BigWaffle master
   .then(result => {
     if (cmd.useStdOut && result.stdout) {
-      reply.text += `\n${result.stdout}`
+      postResult(req.body.response_url, result.stdout)
     }
-    return res.send(reply)
   })
-  // .then(slackResponse => {
-  //   console.debug('Slack response received')
-  //   return
-  // })
   .catch(err => {
-    error(err, res)
+    console.error(err)
   })
+  return reply // send initial reply to Slack
 }
-
-//console.log(getCommand('bwload', '-D --publish -N test --ddfdir v0 https://github.com/Gapminder/big-waffle-ddf-testdata.git'))

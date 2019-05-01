@@ -1,0 +1,43 @@
+# Instructions to Google Cloud Build to build and deploy
+steps:
+# Clone the repo **including submodules** into the 'bwops' directory
+- name: 'gcr.io/cloud-builders/git'
+  id: Clone
+  args:
+  - 'clone'
+  - '--depth'
+  - '1'
+  - '--single-branch'
+  - '-b'
+  - '$BRANCH_NAME'
+  - '--recurse-submodules'
+  - '--shallow-submodules'
+  - 'https://github.com/Gapminder/big-waffle-ops.git'
+  - 'bwops'
+# Build the container image will be deployed to the service cluster.
+- name: 'gcr.io/cloud-builders/docker'
+  id: Build
+  args:
+  - 'build'
+  - '-f'
+  - 'bwops/Dockerfile'
+  - '-t'
+  - 'eu.gcr.io/$PROJECT_ID/big-waffle-ops:$SHORT_SHA'
+  - 'bwops'
+# Push the image to the registry
+- name: 'gcr.io/cloud-builders/docker'
+  id: Push
+  args:
+  - 'push'
+  - 'eu.gcr.io/$PROJECT_ID/big-waffle-ops:$SHORT_SHA'
+# Roll out the new image to the pods in the cluster
+- name: 'gcr.io/cloud-builders/kubectl'
+  id: RollOut
+  args:
+  - 'set'
+  - 'image'
+  - 'deployment/bigwaffle-ops'
+  - '*=eu.gcr.io/$PROJECT_ID/big-waffle-ops:$SHORT_SHA'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=europe-north1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=ops-cluster'

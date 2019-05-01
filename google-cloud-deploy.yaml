@@ -22,7 +22,7 @@ steps:
   - '-f'
   - 'bwops/Dockerfile'
   - '-t'
-  - 'gcr.io/$PROJECT_ID/big-waffle-test:$SHORT_SHA'
+  - 'eu.gcr.io/$PROJECT_ID/big-waffle-ops:$SHORT_SHA'
   - 'bwops'
 # Push the image to the registry
 - name: 'gcr.io/cloud-builders/docker'

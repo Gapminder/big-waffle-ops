@@ -139,7 +139,7 @@ const commands = {
     ],
     cmdFor: args => {
       // build command to dispatch
-      return `./bin/bw make-default ${args.dataset} ${version}`
+      return `./bin/bw make-default ${args.dataset} ${args.version}`
     },
     useStdOut: true
   },

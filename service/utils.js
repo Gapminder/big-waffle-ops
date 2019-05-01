@@ -64,7 +64,7 @@ module.exports.exec = function (cmd, config, res, content = 'OK') {
   * be send to the response.
   */
   const sshConfig = {
-    user: config.user || process.env.FUNCTION_NAME.toLowerCase(),
+    user: config.user,
     host: config.bwMaster,
     key: config.privateKey  
   }

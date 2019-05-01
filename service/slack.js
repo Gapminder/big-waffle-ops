@@ -32,7 +32,7 @@ function verify (req, config) {
   let hmac, expectedHMAC
   try {
     expectedHMAC = signature.split('=', 2) // version, hex digest
-    hmac = crypto.createHmac('sha256', config.clientSecret)
+    hmac = crypto.createHmac('sha256', config.signingSecret)
     hmac.update(`${expectedHMAC[0]}:`)
     hmac.update(`${timestamp}:`)
     const rawBody = querystring.stringify(req.body).replace(/%20/g, '+') //Slack uses HTML encoding with + signs for spaces.

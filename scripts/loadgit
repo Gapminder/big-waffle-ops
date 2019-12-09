@@ -23,7 +23,7 @@ while [ $# -gt 2 ]; do
         -v | --version )        shift
                                 version=$1
                                 ;;
-        --logToSlack            logToSlack="--logToSlack"
+        --logToSlack )          logToSlack="--logToSlack"
                                 ;;
         --hash )                useHash=1
                                 ;;

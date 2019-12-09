@@ -104,7 +104,7 @@ const commands = {
         throw info(`no name was given and ${gitUrl} has an empty path`)
       }
       // build command to dispatch, should be like "./loadgit.sh https://github.com/Gapminder/big-waffle-ddf-testdata.git test"
-      return `nohup ./bin/loadgit ${args.dateversion ? '': '--hash '}${args.publish ? '--publish ' : ''}${args.ddfdir ? `-d ${args.ddfdir} `: ' '}-b ${args.branch} ${gitUrl} ${name} > slack-load.log &`
+      return `nohup ./bin/loadgit --logToSlack ${args.dateversion ? '': '--hash '}${args.publish ? '--publish ' : ''}${args.ddfdir ? `-d ${args.ddfdir} `: ' '}-b ${args.branch} ${gitUrl} ${name} > slack-load.log &`
     }
   },
   bwpublish: {

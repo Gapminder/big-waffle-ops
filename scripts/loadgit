@@ -8,6 +8,7 @@ workingDir=${LOAD_GIT_DIR:-"./tmp"}
 branch="master"
 subDir=
 version=
+logToSlack=""
 useHash=0
 publish=""
 
@@ -21,6 +22,8 @@ while [ $# -gt 2 ]; do
                                 ;;
         -v | --version )        shift
                                 version=$1
+                                ;;
+        --logToSlack            logToSlack="--logToSlack"
                                 ;;
         --hash )                useHash=1
                                 ;;
@@ -66,7 +69,7 @@ fi
 if [ $useHash -gt 0 ] ; then
     version=`git -C ${workingDir}/${name} rev-parse --short ${branch}`
 fi
-node ${bigwaffleDir}/src/cli.js load $publish -d $ddfDirectory $name $version
+node ${bigwaffleDir}/src/cli.js ${logToSlack} load $publish -d $ddfDirectory $name $version
 if [ $? -gt 0 ] ; then
     echo "Loading $gitUrl as $name failed"
     rm -Rf ${workingDir}/${name}

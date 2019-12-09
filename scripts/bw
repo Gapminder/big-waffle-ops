@@ -1,3 +1,4 @@
 #!/bin/bash
 bigwaffleDir=${BIG_WAFFLE_HOME:-"."}
 node ${bigwaffleDir}/src/cli.js $@ 
+exit

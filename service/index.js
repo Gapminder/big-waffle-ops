@@ -2,11 +2,15 @@ const Koa = require('koa')
 const BodyParser = require('koa-bodyparser')
 const Router = require('koa-router')
 
-const Slack = require('./slack')
-
 const app = new Koa()
 const service = new Router()
 
+const GCBuilt = require('./gcbuilt')
+service.post('/gcbuilt', async (ctx) => {
+  ctx.body = await GCBuilt.do(ctx.request)
+})
+
+const Slack = require('./slack')
 service.post('/slack', async (ctx) => {
   ctx.body = await Slack.do(ctx.request)
 })

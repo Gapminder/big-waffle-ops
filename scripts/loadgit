@@ -69,12 +69,15 @@ fi
 if [ $useHash -gt 0 ] ; then
     version=`git -C ${workingDir}/${name} rev-parse --short ${branch}`
 fi
-node ${bigwaffleDir}/src/cli.js ${logToSlack} load $publish -d $ddfDirectory $name $version
+# copying the directory is necessary to wrokaround a create table issue. no idea why
+cp -r $ddfDirectory $ddfDirectory-copy
+rm -Rf ${ddfDirectory}
+node ${bigwaffleDir}/src/cli.js ${logToSlack} load $publish -d $ddfDirectory-copy $name $version
 if [ $? -gt 0 ] ; then
     echo "Loading $gitUrl as $name failed"
-    rm -Rf ${workingDir}/${name}
+    rm -Rf ${ddfDirectory}-copy
     exit 1
 fi
-rm -Rf ${workingDir}/${name}
+rm -Rf ${ddfDirectory}-copy
 node ${bigwaffleDir}/src/cli.js list | grep $name
 exit 0

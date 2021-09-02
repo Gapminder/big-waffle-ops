@@ -63,7 +63,7 @@ if [ $? -gt 0 ] ; then
     exit 1
 fi
 ddfDirectory=${workingDir}/${name}
-if [ -n $subDir ] ; then 
+if [ "$subDir" != "" ] ; then
     ddfDirectory=${ddfDirectory}/${subDir}
 fi
 if [ $useHash -gt 0 ] ; then

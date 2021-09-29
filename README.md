@@ -96,17 +96,16 @@ One needs gcloud SDK to do that. Install SDK, log in with `gcloud auth login`.
 Then run `gcloud compute ssh --zone "europe-north1-a" "big-waffle-master" --project "big-waffle"`. 
 Alternatively `gcloud compute ssh big-waffle-master` if zone and project were set up in SDK during the login process.  
 
-### SSH seccret key looks different from the one in slack.yaml file
-Convert openssh key to pem format
+### Can not SSH to `big-waffle-master` instance from `big-waffle-ops` used by Slack integration workflow
+- `slack.yaml` should have the correct RSA private key in PEM format
+- `/gapminders/github/.ssh/authorized_keys` should have the correct RSA public key
+- The public key should probably also be listed in the web interface, in SSH properties of big-waffle-master instance, with "github" as user
 
-### SSH fails from ops cluster to big-waffle-master instance
-`slack.yaml` should have the correct RSA private key in PEM format
-`/gapminders/github/.ssh/authorized_keys` should have the correct RSA public key
-The public key should probably also be listed in the web interface, in SSH properties of big-waffle-master instance, with "github" as user
+### SSH seccret key looks different from the one in slack.yaml file
+Convert openssh key to PEM format
 
 ### Where are the bw-ops logs?
-[here](https://console.cloud.google.com/kubernetes/deployment/europe-north1-a/ops-cluster/default/bigwaffle-ops/logs?project=big-waffle). 
-Gcloud web interface --> Kuberneted --> Workloads --> bigwaffle-ops --> LOGS
+[link](https://console.cloud.google.com/kubernetes/deployment/europe-north1-a/ops-cluster/default/bigwaffle-ops/logs?project=big-waffle): Gcloud web interface --> Kubernetes --> Workloads --> bigwaffle-ops --> LOGS
 
 ### How to load in datasets directly, bypassing slack integration?
 See example [here](https://github.com/Gapminder/big-waffle/blob/production/README.md#usage)

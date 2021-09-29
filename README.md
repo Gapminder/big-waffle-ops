@@ -89,7 +89,7 @@ The Google Cloud Functions are **deprecated**, and will be moved into the servic
 ### Can not SSH to `big-waffle-master` instance from web interface (stuck on transferring SSH keys)
 Check logs inside the instance properties, it is possible that the instance ran out of space. 
 Expand the volume the instance is using in Google cloud storage. 
-Restart the instance so that it can see the new volume size. 
+Restart the instance so that it can see the new volume size. This may change IP address of the instance and reset `/gapminders/github/.ssh/authorized_keys` file 
 
 ### Can not SSH to `big-waffle-master` instance from a laptop
 One needs gcloud SDK to do that. Install SDK, log in with `gcloud auth login`. 
@@ -97,6 +97,7 @@ Then run `gcloud compute ssh --zone "europe-north1-a" "big-waffle-master" --proj
 Alternatively `gcloud compute ssh big-waffle-master` if zone and project were set up in SDK during the login process.  
 
 ### Can not SSH to `big-waffle-master` instance from `big-waffle-ops` used by Slack integration workflow
+- `slack.yaml` should have the correct ID address of the `big-waffle-master` instance (could be changed upon restart)
 - `slack.yaml` should have the correct RSA private key in PEM format
 - `/gapminders/github/.ssh/authorized_keys` should have the correct RSA public key
 - The public key should probably also be listed in the web interface, in SSH properties of big-waffle-master instance, with "github" as user

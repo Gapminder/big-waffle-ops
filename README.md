@@ -2,13 +2,13 @@
 
 This BigWaffleOps repository contains various components that can be used to support DevOps for managing a BigWaffle deployment.
 
-[Service](#service)
-[Scripts](#scripts)
-[YAML configuration file](#yaml-configuration-file)
-[Slack commands](#slack-commands)
-[Workflow](#workflow)
-[Troubleshooting](#troubleshooting)
-[Google Cloud Functions](#coogle-cloud-functions)
+[Service](#service)  
+[Scripts](#scripts) 
+[YAML configuration file](#yaml-configuration-file) 
+[Slack commands](#slack-commands) 
+[Workflow](#workflow) 
+[Troubleshooting](#troubleshooting) 
+[Google Cloud Functions](#coogle-cloud-functions) 
 
 ## Service
 
